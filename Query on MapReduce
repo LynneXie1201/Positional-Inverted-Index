@@ -1,0 +1,158 @@
+import re, os, sys, json
+#from nltk.corpus import stopwords
+from functools import reduce
+
+
+"""
+Part 3: Query on the merged result file from the Reducer
+"""
+
+# Input is the filepath to the output file from the Reducer
+def inverted_index_part3 (file):
+
+	output = {}
+	f = open(file,"r")
+	for line in f.readlines():
+		line = line.strip()
+		# remove [ ] and ' '
+		line = re.sub(pattern=r"\'", repl=r"", string=line)
+		line = re.sub(pattern=r"\[", repl=r"", string=line)
+		line = re.sub(pattern=r"\]", repl=r"", string=line)
+		# key of the dict is the word
+		key = re.split(r':', line)[0]
+		docs_string = re.split(r':', line)[1]
+		docs = re.split(r',', docs_string)
+		# strip the spaces
+		docs = [item.strip() for item in docs]
+		output[key] = docs
+	
+	f.close()
+	
+	return output
+
+# Return a list of words contains AND & OR
+def words_from_query (query):
+	words = []
+    #remove numbers
+	text = re.sub(pattern=r"\d", repl=r"", string=query)
+	# only contain words 
+	text = re.findall(r'\w+', text)
+	# lowercase the words that are not AND or OR
+	for word in text:
+		if word in ('AND', 'OR'):
+			words.append(word)
+		else:
+			words.append(word.lower())
+	return words
+
+# Return boolean search result in a list
+def boolean_search_part_3 (inverted_index, query):
+
+	
+	output = []
+	# words that appears in the docs
+	in_file_words = []
+	# words from query that contains AND OR
+	words = words_from_query(query)
+	# keywords without AND OR
+	keywords = [ w for w in words if w not in ("AND", "OR")]
+	# single word search
+	if len(words) == 1:
+		return inverted_index.get(keywords[0], "No such word exsits in the files")
+	# only AND operations
+	elif (("AND" in words) and ("OR" not in words)) or len(words) == len(keywords):
+		for word in keywords:
+			if word not in inverted_index:
+				return output # return empty search results
+
+		# else all the keywords are in the inverted index
+		results = [set(inverted_index[word]) for word in keywords]
+		array_docs = reduce(lambda x, y: x & y, results) 
+		return array_docs
+
+	# only OR operations
+	elif ("OR" in words) and ("AND" not in words):
+		for word in keywords:
+			if word in inverted_index:
+				in_file_words.append(word)
+		# no keywords in docs
+		if not in_file_words:
+			return output
+		# at least one keyword in list
+		else:
+			results = [set(inverted_index[word]) for word in in_file_words]
+			array_docs = reduce(lambda x, y: x | y, results) 
+			return array_docs
+
+	# combination of AND & OR - First do AND, then OR, one of A, B, C exists in the file is okay
+	elif ("OR" in words) & ("AND" in words):
+		# store keywords that appear in files
+		for word in keywords:
+			if word in inverted_index:
+				in_file_words.append(word)
+		# no keywords in docs
+		if not in_file_words:
+			return output
+		# at least one keyword in list
+		else:
+			results_and = []
+			results_or = []
+			# detect the words before and after AND
+			and_words = [words[words.index("AND") + 1], words[words.index("AND") - 1]]
+
+
+			# check OR word
+			if words.index("AND") < words.index("OR"):
+				or_word = keywords[2]
+				if keywords[2] in in_file_words:
+					results_or = [set(inverted_index[keywords[2]])]
+			else:
+				or_word = keywords[0]
+				if keywords[0] in in_file_words:
+					results_or = [set(inverted_index[keywords[0]])]
+
+			
+			for word in and_words:
+				# check if words with AND operations are in the docs
+				if word not in in_file_words:
+					# check if words with OR operation are in the docs
+					if or_word in in_file_words:
+						return reduce(lambda x, y: x & y, results_or)
+					else:
+						return output
+					
+			# if all words with AND operation are in docs
+			for word in and_words:
+				results_and.append(set(inverted_index[word]))
+
+			array_docs_and = reduce(lambda x, y: x & y, results_and) 
+
+
+			# check if word with OR operation in the doc
+			if results_or:
+
+				results_or.append(array_docs_and)
+				array_docs = reduce(lambda x, y: x | y, results_or) 
+
+				return array_docs
+			else:
+				return array_docs_and
+
+
+
+
+
+
+def main():
+
+ 	# input is a file, not a dir
+	file = sys.argv[1]
+	
+	inverted_index = inverted_index_part3 (file)
+
+	query = input("Please enter your query here: ")
+	output = boolean_search_part_3(inverted_index, query)
+	print(output)
+  
+if __name__== "__main__":
+  main()
