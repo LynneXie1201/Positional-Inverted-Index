@@ -1,0 +1,33 @@
+#!/usr/bin/env python
+
+import sys
+
+current_word = None
+
+
+for line in sys.stdin:
+    # remove leading and trailing whitespace
+    line = line.strip()
+    # parse the input we got from Mapper.py
+    word, docID = line.split(':',1)
+  
+    # If Else statements works because Hadoop sorts 
+    # Mapper's output by key (here is word) before 
+    # it is passed to Reducer
+    if current_word == word:
+        # only append unique docID
+        if docID not in docs:
+            docs.append(docID)
+
+    else:
+        if current_word:
+            # output word:[a list of docs] to STDOUT
+            print ('%s:%s' % (current_word, docs))
+        current_word = word
+        docs = []
+        docs.append(docID)
+
+# output the last word
+if current_word == word:
+    print ('%s:%s' % (current_word, docs))
+
