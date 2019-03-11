@@ -1,0 +1,163 @@
+import re, os, sys, json
+from functools import reduce
+
+"""
+Part 2: Search query
+Boolean search queries which return documents that satisfies condition specified. 
+You should be able to support AND and OR as well as a combination of the two.
+
+For any word provided by a user, return the files with the word and for each instance 
+a word appears in a file provide the position within the file.
+"""
+
+
+# Return a list of words contains AND & OR
+def words_from_query (query):
+	words = []
+    #remove numbers
+	text = re.sub(pattern=r"\d", repl=r"", string=query)
+	# only contain words 
+	text = re.findall(r'\w+', text)
+	# lowercase the words that are not AND or OR
+	for word in text:
+		if word in ('AND', 'OR'):
+			words.append(word)
+		else:
+			words.append(word.lower())
+	return words
+ 
+# Return boolean search result in a dictionary
+def boolean_search(inverted_index, query):
+	output = {}
+	# words that appears in the docs
+	in_file_words = []
+	# words that contains AND OR
+	words = words_from_query(query)
+	# keywords without AND OR
+	keywords = [ w for w in words if w not in ("AND", "OR")]
+	
+	# single keyword search
+	if len(words) == 1:
+		return inverted_index.get(keywords[0], "No such word exsits in the files")
+	# only AND operations
+	elif (("AND" in words) and ("OR" not in words)) or len(words) == len(keywords):
+
+		for word in keywords:
+			if word not in inverted_index:
+				return output # return empty search results
+
+		# else all the keywords are in the inverted index
+		results = [set(inverted_index[word].keys()) for word in keywords]
+		
+		array_docs = reduce(lambda x, y: x & y, results) 
+		for doc in array_docs:
+			for word in keywords:
+				indices = output.setdefault(doc, {})
+				indices[word] = inverted_index[word][doc]
+				
+		return output
+
+	# only OR operations
+	elif ("OR" in words) and ("AND" not in words):
+
+		for word in keywords:
+			if word in inverted_index:
+				in_file_words.append(word)
+		# no keywords in docs
+		if not in_file_words:
+			return output
+		# at least one keyword in list
+		else:
+					
+			for word in in_file_words:
+				for doc in set(inverted_index[word].keys()):
+					indices = output.setdefault(doc, {})
+					indices[word] = inverted_index[word][doc]
+			return output
+
+	
+
+	# Combination of AND & OR operations
+	elif ("OR" in words) & ("AND" in words):
+		# store keywords that appear in files
+		for word in keywords:
+			if word in inverted_index:
+				in_file_words.append(word)
+		# no keywords in docs
+		if not in_file_words:
+			return output
+		else:
+			results_and = []
+			results_or = []
+			# detect the words before and after AND
+			and_words = [words[words.index("AND") + 1], words[words.index("AND") - 1]]
+
+			# AND before OR
+			if words.index("AND") < words.index("OR"):
+				or_word = keywords[2]
+				if keywords[2] in in_file_words:
+					results_or = [set(inverted_index[keywords[2]].keys())]
+			else:
+				or_word = keywords[0]
+				if keywords[0] in in_file_words:
+					results_or = [set(inverted_index[keywords[0]].keys())]
+
+			for word in and_words:
+				# check if words with AND operations are in the docs
+				if word not in in_file_words:
+					# check if words with OR operation are in the docs
+					if or_word in in_file_words:
+						for doc in inverted_index[or_word]:
+							indices = output.setdefault(doc, {})
+							indices[or_word] = inverted_index[or_word][doc]
+						return output
+					else:
+						return output
+
+
+			# if all words with AND operation are in docs	
+			for word in and_words:
+				results_and.append(set(inverted_index[word]))
+
+			array_docs_and = reduce(lambda x, y: x & y, results_and) 
+			
+			# check if word with OR operation in the doc
+			if results_or:
+
+				results_or.append(array_docs_and)
+				array_docs = reduce(lambda x, y: x | y, results_or) 
+
+				for word in in_file_words:		
+					for doc in array_docs:
+						if doc in inverted_index[word].keys():
+							indices = output.setdefault(doc, {})
+							indices[word] = inverted_index[word][doc]
+				return output
+
+			# if not, just return results from AND operation	
+			else:
+				
+				for word in and_words:		
+					for doc in array_docs_and:
+						if doc in inverted_index[word].keys():
+							indices = output.setdefault(doc, {})
+							indices[word] = inverted_index[word][doc]
+				return output
+
+
+
+
+
+def main():
+
+ 
+  # load inverted index from the json file
+	with open('inverted_index.json', 'r') as f:
+		inverted_index = json.load(f)
+
+	query = input("Please enter your query here: ")
+	output = boolean_search(inverted_index, query)
+	print(output)
+  
+if __name__== "__main__":
+  main()
