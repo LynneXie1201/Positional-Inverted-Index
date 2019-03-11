@@ -1,0 +1,90 @@
+import re, os, sys, json
+#from nltk.corpus import stopwords
+from functools import reduce
+
+
+
+"""
+Part 1: Create an inverted index for a directory of files
+"""
+
+# Return a list of files from a directory
+def get_files(dir):
+	files = []
+	for file in os.listdir(dir):
+		if file.endswith('txt'):
+			files.append(file)
+	return files
+
+
+# Split text into a list of (position, word) pairs
+def word_split(text):
+	stopwords = ['and', 'but', 'is', 'the', 'to']
+	word_list = []
+	# remove numbers
+	text = re.sub(pattern=r"\d", repl=r"", string=text)
+	# only contain words and lowercase
+	text = re.findall(r'\w+', text.lower())
+   
+	for index, word in enumerate(text):
+		# remove stopwords without influencing the position of the other words
+		if word not in stopwords:
+			word_list.append((index, word))
+  
+	return word_list
+
+# Create a dictionary with word as key, and a list of positions as value 
+# for a single file 
+def inverted_index_single(text):
+	inverted = {}
+	for index, word in text:
+		locations = inverted.setdefault(word, [])
+		locations.append(index)
+	return inverted
+
+
+# Loop through multiple files to create the final inverted index
+def inverted_index_all(inverted, doc_id, doc_inverted):
+	
+	for word, locations in doc_inverted.items():
+		indices = inverted.setdefault(word, {})
+		indices[doc_id] = locations
+	return inverted
+
+
+# Assemble the helper functions
+def inverted_index_from_folder(dir):
+	# return a list of files from dir
+	files = get_files(dir)
+	# the final inverted index dict
+	inverted_mul = {}
+	for file in files:
+		with open(dir + file, 'r') as myfile:
+			# a string contains all content from a single file
+			words = myfile.read().replace('\n', ' ')
+			split_words = word_split(words)
+			# create inverted index for a single file
+			inverted_single_file = inverted_index_single(split_words)
+			# create the final inverted index
+			inverted_index_all(inverted_mul, file, inverted_single_file)
+		
+	return inverted_mul
+
+
+# save the inverted index to a json file
+def save_index(inverted_index):
+  
+	with open('inverted_index.json', 'w') as fp:
+		json.dump(inverted_index, fp)
+
+
+def main():
+
+  dir = sys.argv[1]
+  inverted_index = inverted_index_from_folder(dir)
+  save_index(inverted_index)
+  #print(inverted_index)
+  print("An inverted index was created and saved to the file")
+  
+if __name__== "__main__":
+  main()
